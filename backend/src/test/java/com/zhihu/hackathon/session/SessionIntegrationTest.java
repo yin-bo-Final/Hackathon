@@ -476,6 +476,20 @@ class SessionIntegrationTest {
         .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_TARGET"));
     verifyNoInteractions(model,search);
   }
+  @Test void nonStringTargetsAreRejectedWithoutGenerating() throws Exception {
+    // Jackson 会把 JSON 数字/布尔静默强转成 String；这些载荷必须与缺失目标一样被拒绝。
+    for (String body : List.of("{\"target\":123}", "{\"target\":true}", "{\"target\":[\"x\"]}", "{}")) {
+      mvc.perform(post("/api/v1/learning-sessions").session(session).header("X-CSRF-Token",csrf)
+          .contentType("application/json").content(body))
+          .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error.code").value("INVALID_TARGET"));
+    }
+    verifyNoInteractions(model,search);
+  }
+  @Test void numericTextTargetsRemainAccepted() throws Exception {
+    mvc.perform(post("/api/v1/learning-sessions").session(session).header("X-CSRF-Token",csrf)
+        .contentType("application/json").content("{\"target\":\"123\"}"))
+        .andExpect(status().isAccepted());
+  }
   @Test void searchFailureBecomesWarningAndStillReady() throws Exception {
     when(search.search(anyString(),anyInt())).thenThrow(new IllegalStateException("private response"));
     long id=create();waitFor(id,"READY");
